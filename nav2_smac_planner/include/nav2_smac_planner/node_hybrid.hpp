@@ -19,6 +19,8 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <atomic>
+#include <string>
 
 #include "ompl/base/StateSpace.h"
 
@@ -367,6 +369,7 @@ public:
    */
   bool backtracePath(CoordinateVector & path);
 
+  static inline std::atomic<std::string> my_value;
   NodeHybrid * parent;
   Coordinates pose;
 

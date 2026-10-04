@@ -163,6 +163,7 @@ protected:
     _smoothed_footprints_publisher;
   nav2::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr
     _expansions_publisher;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr _my_sub;
   std::mutex _mutex;
   nav2::LifecycleNode::WeakPtr _node;
 

@@ -22,6 +22,8 @@
 #include <queue>
 #include <limits>
 #include <utility>
+#include <cstdint>
+#include <cmath>
 
 #include "ompl/base/ScopedState.h"
 #include "ompl/base/spaces/DubinsStateSpace.h"
@@ -31,6 +33,22 @@
 
 using namespace std::chrono;  // NOLINT
 
+namespace {
+  using Points = std::vector<std::pair<float, float>>;
+
+  void parse(const std::string& s, Points& red, Points& green) {
+      static const std::regex section(R"((red|green)\s*:([^;]*))");
+      static const std::regex point(R"(\(\s*([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)\s*\))");
+      const std::sregex_iterator end;
+
+      for (std::sregex_iterator it(s.begin(), s.end(), section); it != end; ++it) {
+          Points& dst = ((*it)[1] == "red") ? red : green;
+          std::string body = (*it)[2];  // copy: iterators must not point at a temporary
+          for (std::sregex_iterator p(body.begin(), body.end(), point); p != end; ++p)
+              dst.emplace_back(std::stof((*p)[1]), std::stof((*p)[2]));
+      }
+  }
+}
 namespace nav2_smac_planner
 {
 
@@ -372,6 +390,43 @@ bool NodeHybrid::isNodeValid(
   const bool & traverse_unknown,
   GridCollisionChecker * collision_checker)
 {
+  const string s = my_value.load();
+  if (!s.empty()) {
+    const auto * cm = collision_checker->getCostmap();
+    const double wx = cm->getOriginX() + (this->pose.x + 0.5) * cm->getResolution();
+    const double wy = cm->getOriginY() + (this->pose.y + 0.5) * cm->getResolution();
+    const double yaw = _ctx->motion_table.getAngleFromBin(this->pose.theta);
+
+    auto sideOfShip = [](double a, double b, double theta,
+                      double x, double y, double L,
+                      double lengthTol = 0.0,
+                      double centerEps = 0.0) -> std::string {
+      const double dx = x - a;
+      const double dy = y - b;
+      const double along =  dx * std::cos(theta) + dy * std::sin(theta);
+      const double side  = -dx * std::sin(theta) + dy * std::cos(theta);
+
+      if (std::abs(along) > L / 2 + lengthTol) return "none";  // ahead of bow or behind stern
+
+      return "left" if side >= 0 else "right"
+    };
+
+    Points red, green;
+    parse(s, red, green);
+    constexpr double ship_length = 1.2; // meter
+    for (std::pair<float, float> p: red) {
+      if (sideOfShip(wx, wy, yaw, p.first, p.second, ship_length) == "right") {
+        return false;
+      }
+    }
+
+    for (std::pair<float, float> p: green) {
+      if (sideOfShip(wx, wy, yaw, p.first, p.second, ship_length) == "left") {
+        return false;
+      }
+    }
+  }
+
   // Already found, we can return the result
   if (!std::isnan(_cell_cost)) {
     return _is_node_valid;

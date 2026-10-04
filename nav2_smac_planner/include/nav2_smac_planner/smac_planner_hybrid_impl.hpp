@@ -243,6 +243,13 @@ void SmacPlannerHybridT<NodeT>::configure(
   _costmap_downsampler->on_configure(
     node, _global_frame, topic_name, _costmap, _downsampling_factor);
 
+  _my_sub = node->create_subscription<std_msgs::msg::String>(
+  "my_topic",
+  [](const std_msgs::msg::String::SharedPtr msg) {
+    NodeHybrid::my_value.store(msg->data);
+  },
+  nav2::qos::StandardTopicQoS());
+
   _raw_plan_publisher = node->create_publisher<nav_msgs::msg::Path>("unsmoothed_plan");
 
   if (_debug_visualizations) {
@@ -330,6 +337,7 @@ void SmacPlannerHybridT<NodeT>::cleanup()
     _costmap_downsampler.reset();
   }
   _raw_plan_publisher.reset();
+  _my_sub.reset();
   if (_debug_visualizations) {
     _expansions_publisher.reset();
     _planned_footprints_publisher.reset();
